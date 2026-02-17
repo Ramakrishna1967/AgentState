@@ -6,35 +6,35 @@
 ```mermaid
 %%{init: {'theme':'dark', 'themeVariables': {'primaryColor': '#4f46e5', 'edgeLabelBackground':'#1e1e2e'}}}%%
 graph TD
-    subgraph UserSpace["🖥️ User Space"]
-        A["🤖 Agent Code<br/><i>LangGraph / CrewAI / AutoGen</i>"]
-        B["📦 AgentStack SDK<br/><i>@observe decorator</i>"]
+    subgraph UserSpace[" User Space"]
+        A[" Agent Code<br/><i>LangGraph / CrewAI / AutoGen</i>"]
+        B[" AgentStack SDK<br/><i>@observe decorator</i>"]
     end
 
-    subgraph Ingestion["⚡ Ingestion Layer"]
-        C["🔌 Trace Collector<br/><i>FastAPI endpoint</i>"]
+    subgraph Ingestion[" Ingestion Layer"]
+        C[" Trace Collector<br/><i>FastAPI endpoint</i>"]
     end
 
-    subgraph EventBus["📡 Event Bus"]
-        D[("🔴 Redis Streams<br/><i>spans.ingest</i>")]
+    subgraph EventBus[" Event Bus"]
+        D[(" Redis Streams<br/><i>spans.ingest</i>")]
     end
 
-    subgraph Processing["⚙️ Processing Layer"]
-        E["💾 ClickHouse Writer<br/><i>Batch INSERT</i>"]
-        F{{"🛡️ Security Engine<br/><i>Threat Scanner</i>"}}
-        G["💰 Cost Calculator<br/><i>Token Pricing</i>"]
+    subgraph Processing["Processing Layer"]
+        E[" ClickHouse Writer<br/><i>Batch INSERT</i>"]
+        F{{" Security Engine<br/><i>Threat Scanner</i>"}}
+        G[" Cost Calculator<br/><i>Token Pricing</i>"]
     end
 
-    subgraph Storage["🗄️ Storage Layer"]
-        H[("📊 ClickHouse<br/><i>Columnar DB</i>")]
+    subgraph Storage[" Storage Layer"]
+        H[("ClickHouse<br/><i>Columnar DB</i>")]
     end
 
     subgraph APILayer["🔌 API Layer"]
-        I["🌐 FastAPI Server<br/><i>REST + WebSocket</i>"]
+        I[" FastAPI Server<br/><i>REST + WebSocket</i>"]
     end
 
-    subgraph Frontend["🖼️ Frontend"]
-        J["📱 React Dashboard<br/><i>Vite + Shadcn UI</i>"]
+    subgraph Frontend[" Frontend"]
+        J[" React Dashboard<br/><i>Vite + Shadcn UI</i>"]
     end
 
     A -->|"function call"| B
@@ -72,16 +72,16 @@ graph TD
 sequenceDiagram
     autonumber
 
-    actor Dev as 👨‍💻 Developer
-    participant SDK as 📦 SDK
-    participant Buf as 📋 Batch Queue
-    participant Col as 🔌 Collector
-    participant Red as 🔴 Redis
-    participant CHW as 💾 CH Writer
-    participant Sec as 🛡️ Security
-    participant CH as 📊 ClickHouse
-    participant API as 🌐 FastAPI
-    participant UI as 📱 Dashboard
+    actor Dev as  Developer
+    participant SDK as  SDK
+    participant Buf as  Batch Queue
+    participant Col as  Collector
+    participant Red as  Redis
+    participant CHW as  CH Writer
+    participant Sec as  Security
+    participant CH as  ClickHouse
+    participant API as FastAPI
+    participant UI as  Dashboard
 
     rect rgb(30, 58, 95)
         Note over Dev,UI: SPAN CREATION
@@ -113,7 +113,7 @@ sequenceDiagram
         and Security Scanner
             Red->>Sec: XREADGROUP
             Sec->>Sec: scan: injection + PII + loops
-            alt 🚨 Threat Found
+            alt  Threat Found
                 Sec->>CH: INSERT INTO security_alerts
                 Sec->>Red: XADD alerts.live
             end
@@ -146,34 +146,34 @@ sequenceDiagram
 ```mermaid
 %%{init: {'theme':'dark'}}%%
 graph TD
-    subgraph UserCode["👨‍💻 Developer Code"]
+    subgraph UserCode[" Developer Code"]
         A["@observe<br/>decorator"]
     end
 
-    subgraph SDKCore["📦 SDK Core"]
-        B["🔍 Tracer<br/><i>span creation</i>"]
-        C["🔗 Context Manager<br/><i>parent/child linking</i>"]
-        D["📝 Span Processor<br/><i>enrich + validate</i>"]
+    subgraph SDKCore[" SDK Core"]
+        B[" Tracer<br/><i>span creation</i>"]
+        C[" Context Manager<br/><i>parent/child linking</i>"]
+        D[" Span Processor<br/><i>enrich + validate</i>"]
     end
 
-    subgraph Enrichment["🧹 Enrichment"]
-        E["🧽 PII Sanitizer<br/><i>regex + patterns</i>"]
-        F["⚙️ Config Manager<br/><i>env vars + defaults</i>"]
-        G["🔌 Framework Hooks<br/><i>auto-instrument</i>"]
+    subgraph Enrichment[" Enrichment"]
+        E[" PII Sanitizer<br/><i>regex + patterns</i>"]
+        F[" Config Manager<br/><i>env vars + defaults</i>"]
+        G["Framework Hooks<br/><i>auto-instrument</i>"]
     end
 
-    subgraph Export["📤 Export Pipeline"]
-        H["📋 Ring Buffer<br/><i>64-span batches</i>"]
-        I["⏱️ Flush Timer<br/><i>5-second interval</i>"]
-        J["📡 OTLP Exporter<br/><i>HTTP + Protobuf</i>"]
+    subgraph Export[" Export Pipeline"]
+        H[" Ring Buffer<br/><i>64-span batches</i>"]
+        I[" Flush Timer<br/><i>5-second interval</i>"]
+        J[" OTLP Exporter<br/><i>HTTP + Protobuf</i>"]
     end
 
-    subgraph Fallback["🔄 Resilience"]
-        K["💾 Local Store<br/><i>SQLite fallback</i>"]
-        L["🔁 Retry Handler<br/><i>exp. backoff</i>"]
+    subgraph Fallback[" Resilience"]
+        K[" Local Store<br/><i>SQLite fallback</i>"]
+        L[" Retry Handler<br/><i>exp. backoff</i>"]
     end
 
-    subgraph Frameworks["🤖 Auto-Instrumentation"]
+    subgraph Frameworks[" Auto-Instrumentation"]
         M["LangGraph<br/>nodes + edges"]
         N["CrewAI<br/>tasks + agents"]
         O["AutoGen<br/>messages"]
@@ -220,29 +220,29 @@ graph TD
 ```mermaid
 %%{init: {'theme':'dark'}}%%
 graph TD
-    subgraph EventBus["📡 Redis Streams"]
-        R[("🔴 spans.ingest<br/><i>maxlen ~1M</i>")]
-        RA[("🔴 alerts.live<br/><i>real-time alerts</i>")]
+    subgraph EventBus[" Redis Streams"]
+        R[(" spans.ingest<br/><i>maxlen ~1M</i>")]
+        RA[(" alerts.live<br/><i>real-time alerts</i>")]
     end
 
-    subgraph Consumers["⚙️ Consumer Groups (Parallel)"]
-        C1["💾 ClickHouse Writer<br/><i>batch size: 1000</i><br/><i>flush: 1s</i>"]
-        C2{{"🛡️ Security Scanner<br/><i>per-span analysis</i>"}}
-        C3["💰 Cost Aggregator<br/><i>per-model pricing</i>"]
+    subgraph Consumers[" Consumer Groups (Parallel)"]
+        C1[" ClickHouse Writer<br/><i>batch size: 1000</i><br/><i>flush: 1s</i>"]
+        C2{{" Security Scanner<br/><i>per-span analysis</i>"}}
+        C3[" Cost Aggregator<br/><i>per-model pricing</i>"]
     end
 
-    subgraph ClickHouseDB["📊 ClickHouse Cluster"]
-        subgraph HotTier["🔥 Hot Storage (7 days)"]
+    subgraph ClickHouseDB[" ClickHouse Cluster"]
+        subgraph HotTier[" Hot Storage (7 days)"]
             T1[("spans<br/><i>MergeTree, ORDER BY trace_id</i>")]
             T2[("security_alerts<br/><i>MergeTree, ORDER BY severity</i>")]
             T3[("cost_metrics<br/><i>SummingMergeTree</i>")]
         end
-        subgraph ColdTier["❄️ Cold Storage (90 days)"]
+        subgraph ColdTier[" Cold Storage (90 days)"]
             T4[("spans_archive<br/><i>compressed, S3-backed</i>")]
         end
     end
 
-    subgraph Retention["🗑️ Retention Policy"]
+    subgraph Retention[" Retention Policy"]
         RP["TTL Manager<br/><i>auto-delete > 90 days</i>"]
         MV["Materialized View<br/><i>hot → cold migration</i>"]
     end
@@ -282,32 +282,32 @@ graph TD
 ```mermaid
 %%{init: {'theme':'dark'}}%%
 graph TD
-    subgraph Input["📥 Input"]
+    subgraph Input[" Input"]
         S["Incoming Span<br/><i>from Redis consumer</i>"]
     end
 
-    subgraph RuleEngine["📏 Rule Engine"]
-        R1["🔍 Regex Scanner<br/><i>pattern matching</i>"]
-        R2["📋 YARA Rules<br/><i>known attack sigs</i>"]
-        R3["📊 Heuristics<br/><i>statistical analysis</i>"]
+    subgraph RuleEngine[" Rule Engine"]
+        R1[" Regex Scanner<br/><i>pattern matching</i>"]
+        R2[" YARA Rules<br/><i>known attack sigs</i>"]
+        R3[" Heuristics<br/><i>statistical analysis</i>"]
     end
 
-    subgraph Detectors["🎯 Detection Modules"]
-        D1{{"🚨 Prompt Injection<br/><i>'ignore previous'</i><br/><i>'system override'</i><br/><i>role confusion</i>"}}
-        D2{{"🔒 PII Leak<br/><i>SSN: XXX-XX-XXXX</i><br/><i>email patterns</i><br/><i>credit card nums</i>"}}
-        D3{{"🔄 Anomaly Detection<br/><i>infinite loops</i><br/><i>token explosion</i><br/><i>timeout chains</i>"}}
+    subgraph Detectors[" Detection Modules"]
+        D1{{" Prompt Injection<br/><i>'ignore previous'</i><br/><i>'system override'</i><br/><i>role confusion</i>"}}
+        D2{{" PII Leak<br/><i>SSN: XXX-XX-XXXX</i><br/><i>email patterns</i><br/><i>credit card nums</i>"}}
+        D3{{" Anomaly Detection<br/><i>infinite loops</i><br/><i>token explosion</i><br/><i>timeout chains</i>"}}
     end
 
-    subgraph Scoring["⚖️ Threat Scoring"]
+    subgraph Scoring[" Threat Scoring"]
         TS["Score Aggregator<br/><i>weighted sum</i>"]
         TH["Threshold Check<br/><i>LOW / MEDIUM / HIGH / CRITICAL</i>"]
     end
 
-    subgraph Output["📤 Output"]
-        AL["🔔 Alert Generator<br/><i>structured alert object</i>"]
-        DB[("📊 ClickHouse<br/><i>security_alerts table</i>")]
-        RT[("🔴 Redis<br/><i>alerts.live stream</i>")]
-        WH["🌐 Webhook<br/><i>Slack / PagerDuty</i>"]
+    subgraph Output[" Output"]
+        AL[" Alert Generator<br/><i>structured alert object</i>"]
+        DB[(" ClickHouse<br/><i>security_alerts table</i>")]
+        RT[(" Redis<br/><i>alerts.live stream</i>")]
+        WH[" Webhook<br/><i>Slack / PagerDuty</i>"]
     end
 
     S --> R1
@@ -350,37 +350,37 @@ graph TD
 ```mermaid
 %%{init: {'theme':'dark'}}%%
 graph TD
-    subgraph DockerNetwork["🐳 Docker Network: agentstack-net"]
+    subgraph DockerNetwork[" Docker Network: agentstack-net"]
 
-        subgraph PublicFacing["🌍 Public (ports exposed)"]
-            NGINX["🔒 Nginx<br/><i>:80 → :443</i><br/><i>TLS termination</i>"]
+        subgraph PublicFacing[" Public (ports exposed)"]
+            NGINX[" Nginx<br/><i>:80 → :443</i><br/><i>TLS termination</i>"]
         end
 
-        subgraph Services["⚙️ Application Services"]
-            COL["🔌 Collector<br/><i>:4318 (internal)</i><br/><i>2 replicas</i>"]
-            API["🌐 API Server<br/><i>:8000 (internal)</i><br/><i>2 replicas</i>"]
-            DASH["📱 Dashboard<br/><i>:3000 (internal)</i><br/><i>static files</i>"]
+        subgraph Services[" Application Services"]
+            COL[" Collector<br/><i>:4318 (internal)</i><br/><i>2 replicas</i>"]
+            API[" API Server<br/><i>:8000 (internal)</i><br/><i>2 replicas</i>"]
+            DASH[" Dashboard<br/><i>:3000 (internal)</i><br/><i>static files</i>"]
         end
 
-        subgraph Workers["👷 Background Workers"]
-            W1["💾 CH Writer<br/><i>1 replica</i>"]
-            W2{{"🛡️ Security<br/><i>1 replica</i>"}}
-            W3["💰 Cost Calc<br/><i>1 replica</i>"]
+        subgraph Workers[" Background Workers"]
+            W1[" CH Writer<br/><i>1 replica</i>"]
+            W2{{" Security<br/><i>1 replica</i>"}}
+            W3[" Cost Calc<br/><i>1 replica</i>"]
         end
 
-        subgraph DataStores["💾 Data Stores"]
-            RED[("🔴 Redis<br/><i>:6379</i><br/><i>vol: redis-data</i>")]
-            CH[("📊 ClickHouse<br/><i>:8123 / :9000</i><br/><i>vol: ch-data</i>")]
+        subgraph DataStores[" Data Stores"]
+            RED[(" Redis<br/><i>:6379</i><br/><i>vol: redis-data</i>")]
+            CH[(" ClickHouse<br/><i>:8123 / :9000</i><br/><i>vol: ch-data</i>")]
         end
     end
 
-    subgraph Volumes["📁 Docker Volumes"]
+    subgraph Volumes[" Docker Volumes"]
         V1["redis-data<br/><i>AOF persistence</i>"]
         V2["ch-data<br/><i>MergeTree storage</i>"]
         V3["nginx-certs<br/><i>TLS certificates</i>"]
     end
 
-    Internet["☁️ Internet"] -->|":443 HTTPS"| NGINX
+    Internet[" Internet"] -->|":443 HTTPS"| NGINX
     NGINX -->|"/api/* → :8000"| API
     NGINX -->|"/ → :3000"| DASH
     NGINX -->|"/v1/traces → :4318"| COL
@@ -423,27 +423,27 @@ graph TD
 ```mermaid
 %%{init: {'theme':'dark'}}%%
 graph LR
-    subgraph Stage1["🧪 Stage 1: Solo Dev<br/><i>0 - 10 spans/sec</i>"]
-        S1A["📦 SDK"] --> S1B["💾 SQLite<br/><i>local file</i>"]
-        S1B --> S1C["🖥️ CLI Viewer<br/><i>rich terminal</i>"]
+    subgraph Stage1[" Stage 1: Solo Dev<br/><i>0 - 10 spans/sec</i>"]
+        S1A[" SDK"] --> S1B[" SQLite<br/><i>local file</i>"]
+        S1B --> S1C[" CLI Viewer<br/><i>rich terminal</i>"]
     end
 
-    subgraph Stage2["👥 Stage 2: Small Team<br/><i>10 - 1K spans/sec</i>"]
-        S2A["📦 SDK"] -->|"HTTP"| S2B["🌐 FastAPI<br/><i>single server</i>"]
-        S2B --> S2C[("💾 SQLite<br/><i>server-side</i>")]
-        S2B --> S2D["📱 React<br/><i>dashboard</i>"]
+    subgraph Stage2[" Stage 2: Small Team<br/><i>10 - 1K spans/sec</i>"]
+        S2A[" SDK"] -->|"HTTP"| S2B[" FastAPI<br/><i>single server</i>"]
+        S2B --> S2C[(" SQLite<br/><i>server-side</i>")]
+        S2B --> S2D[" React<br/><i>dashboard</i>"]
     end
 
-    subgraph Stage3["🏢 Stage 3: Production<br/><i>1K - 100K spans/sec</i>"]
-        S3A["📦 SDK"] -->|"OTLP"| S3B["⚖️ Load<br/>Balancer"]
-        S3B --> S3C["🔌 Collector<br/><i>x2 replicas</i>"]
-        S3C --> S3D[("🔴 Redis<br/><i>Streams</i>")]
-        S3D --> S3E["💾 CH Writer"]
-        S3D --> S3F{{"🛡️ Security"}}
-        S3E --> S3G[("📊 ClickHouse<br/><i>cluster</i>")]
+    subgraph Stage3[" Stage 3: Production<br/><i>1K - 100K spans/sec</i>"]
+        S3A[" SDK"] -->|"OTLP"| S3B[" Load<br/>Balancer"]
+        S3B --> S3C[" Collector<br/><i>x2 replicas</i>"]
+        S3C --> S3D[(" Redis<br/><i>Streams</i>")]
+        S3D --> S3E[" CH Writer"]
+        S3D --> S3F{{" Security"}}
+        S3E --> S3G[(" ClickHouse<br/><i>cluster</i>")]
         S3F --> S3G
-        S3G --> S3H["🌐 API<br/><i>x2 replicas</i>"]
-        S3H --> S3I["📱 Dashboard<br/><i>CDN</i>"]
+        S3G --> S3H[" API<br/><i>x2 replicas</i>"]
+        S3H --> S3I[" Dashboard<br/><i>CDN</i>"]
     end
 
     Stage1 -.->|"add server<br/>+ dashboard"| Stage2
