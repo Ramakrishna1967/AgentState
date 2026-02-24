@@ -1,0 +1,200 @@
+# Copyright 2026 AgentStack Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+"""Async SQLite database connection manager using aiosqlite.
+
+Provides async context manager for database connections and ensures
+schema is initialized on first run.
+"""
+
+from __future__ import annotations
+
+import aiosqlite
+import logging
+from pathlib import Path
+from typing import AsyncGenerator
+
+logger = logging.getLogger("agentstack.api")
+
+# Default database location
+_DEFAULT_DB_PATH = Path.cwd() / "agentstack.db"
+
+
+class Database:
+    """Async SQLite database manager."""
+
+    def __init__(self, db_path: str | Path = _DEFAULT_DB_PATH):
+        self.db_path = str(db_path)
+        self._initialized = False
+
+    async def init_db(self) -> None:
+        """Initialize database schema on first run."""
+        if self._initialized:
+            return
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            # Enable WAL mode for better concurrency
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute("PRAGMA busy_timeout=5000")
+            await conn.execute("PRAGMA foreign_keys=ON")
+
+            # Projects table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    api_key_hash TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # HIGH-5 FIX: User-project ownership table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_projects (
+                    user_id TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'owner',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, project_id),
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                )
+            """)
+
+            # Traces table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS traces (
+                    trace_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    start_time INTEGER NOT NULL,
+                    end_time INTEGER,
+                    duration_ms INTEGER,
+                    status TEXT DEFAULT 'OK',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                )
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_traces_project
+                ON traces(project_id, created_at DESC)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_traces_status
+                ON traces(status, created_at DESC)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_traces_starttime
+                ON traces(project_id, start_time DESC)
+            """)
+
+            # Spans table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS spans (
+                    span_id TEXT PRIMARY KEY,
+                    trace_id TEXT NOT NULL,
+                    parent_span_id TEXT,
+                    project_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    start_time INTEGER NOT NULL,
+                    end_time INTEGER,
+                    duration_ms INTEGER,
+                    status TEXT DEFAULT 'OK',
+                    service_name TEXT,
+                    attributes TEXT,
+                    events TEXT,
+                    api_key_hash TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (trace_id) REFERENCES traces(trace_id) ON DELETE CASCADE,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                )
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_spans_trace
+                ON spans(trace_id, start_time ASC)
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_spans_project
+                ON spans(project_id, created_at DESC)
+            """)
+
+            # Security alerts table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS security_alerts (
+                    id TEXT PRIMARY KEY,
+                    trace_id TEXT NOT NULL,
+                    span_id TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    alert_type TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (trace_id) REFERENCES traces(trace_id) ON DELETE CASCADE,
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+                )
+            """)
+            await conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alerts_project
+                ON security_alerts(project_id, severity, created_at DESC)
+            """)
+
+            # Users table (for dashboard auth)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    hashed_password TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            await conn.commit()
+            self._initialized = True
+            logger.info(f"Database initialized at {self.db_path}")
+
+    async def get_connection(self) -> aiosqlite.Connection:
+        """Get a new database connection with correct pragmas."""
+        if not self._initialized:
+            await self.init_db()
+        
+        conn = await aiosqlite.connect(self.db_path, timeout=5.0)
+        conn.row_factory = aiosqlite.Row
+        
+        # Enforce pragmas on every new connection
+        await conn.execute("PRAGMA foreign_keys=ON")
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.execute("PRAGMA busy_timeout=5000")
+        
+        return conn
+
+
+# Global database instance
+_db: Database | None = None
+
+
+def get_database(db_path: str | Path = _DEFAULT_DB_PATH) -> Database:
+    """Get the global Database instance (singleton)."""
+    global _db
+    if _db is None:
+        _db = Database(db_path)
+    return _db
+
+
+async def get_db() -> AsyncGenerator[aiosqlite.Connection, None]:
+    """Dependency injection: get database connection for FastAPI routes.
+
+    Usage in routes:
+        @router.get("/...")
+        async def my_route(db: aiosqlite.Connection = Depends(get_db)):
+            ...
+    """
+    db = get_database()
+    conn = await db.get_connection()
+    try:
+        yield conn
+    finally:
+        await conn.close()

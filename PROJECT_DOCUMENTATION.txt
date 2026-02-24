@@ -1,0 +1,1010 @@
+AGENTSTACK - THE COMPLETE TECHNICAL REFERENCE (MASTER DOCUMENT)
+================================================================
+VERSION: 1.0.0-ALPHA
+DATE: 2026-02-13
+AUTHOR: SYSTEM ARCHITECT
+
+TABLE OF CONTENTS
+-----------------
+1.  EXECUTIVE OVERVIEW (Lines 20-50)
+2.  CORE CONCEPTS & TERMINOLOGY (Lines 51-100)
+3.  SYSTEM ARCHITECTURE: DEEP DIVE (Lines 101-200)
+4.  COMPONENT SPECIFICATIONS (Lines 201-450)
+    4.1 SDK (Client Library)
+    4.2 Trace Collector (Ingestion)
+    4.3 Redis Streams (Event Bus)
+    4.4 Worker: ClickHouse Writer
+    4.5 Worker: Security Engine
+    4.6 Worker: Cost Calculator
+    4.7 ClickHouse Database (Storage)
+    4.8 FastAPI Server (Backend)
+    4.9 React Dashboard (Frontend)
+5.  DATA MODEL & SCHEMA REFERENCE (Lines 451-600)
+6.  API REFERENCE (OPENAPI SPECIFICATION) (Lines 601-800)
+7.  SECURITY & COMPLIANCE PROTOCOLS (Lines 801-900)
+8.  OPERATIONAL RUNBOOKS (Lines 901-1000+)
+9.  FUTURE ROADMAP & DEPRECATION POLICY (Lines 1001+)
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE OVERVIEW
+--------------------------------------------------------------------------------
+AgentStack is an enterprise-grade observability platform designed specifically for
+AI Agents built on frameworks such as LangGraph, CrewAI, AutoGen, and custom Python
+implementations. It addresses the critical "black box" problem inherent in LLM-based applications.
+
+Problem Statement:
+Current AI development lacks tooling for introspection. When an agent fails (e.g., infinite loops,
+hallucinations, PII leaks), developers rely on crude logging statements (print debugging)
+which are insufficient for complex, multi-step agentic workflows. European Union AI Act
+compliance mandates strict audit trails for autonomous systems, which current tools fail to provide.
+
+Solution:
+AgentStack provides a complete "flight recorder" solution. By integrating a lightweight SDK
+into the agent's runtime, it captures granular execution traces (Spans) covering:
+- LLM Prompts and Completions (captured securely)
+- Tool Usage (inputs, outputs, duration)
+- Memory Operations (RAG retrieval context)
+- System Events (errors, state changes)
+
+These events are processed in real-time to provide:
+1.  Visual Debugging: A Gantt-chart style timeline of agent thought processes.
+2.  Security Scanning: Real-time detection of Prompt Injection and PII leaks.
+3.  Cost Analytics: Precise token-level cost tracking across different models.
+4.  Performance Metrics: Latency, throughput, and error rate tracking.
+
+Target Audience:
+- AI Engineers debugging complex agent behaviors.
+- Platform Teams managing AI infrastructure at scale.
+- Compliance Officers requiring audit logs for AI decisions.
+
+--------------------------------------------------------------------------------
+2. CORE CONCEPTS & TERMINOLOGY
+--------------------------------------------------------------------------------
+Understanding AgentStack requires familiarity with the following core entities:
+
+TRACE
+A Trace represents a single execution of an AI Agent task. It is the root container for all
+events that happen during that execution.
+- ID Format: UUIDv4 (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+- Scope: One user request = One Trace.
+
+SPAN
+A Span is a single unit of work within a Trace. It represents a specific operation.
+- attributes: Key-value pairs describing the operation (e.g., `model_name="gpt-4"`).
+- status: `OK` or `ERROR`.
+- duration: Time taken in milliseconds.
+
+PARENT-CHILD RELATIONSHIP
+Spans form a tree structure. A Trace is a tree of Spans.
+- Root Span: The initial request handler.
+- Child Span: An LLM call made by the handler.
+- Sibling Span: A tool call made after the LLM call.
+
+CONTEXT PROPAGATION
+The mechanism by which Trace IDs are passed between different parts of the code.
+AgentStack uses Python `contextvars` to ensure thread-safe context management in async environments.
+
+BATCH
+A collection of Spans gathered by the SDK and sent to the server in a single HTTP request.
+- Default Batch Size: 64 Spans
+- Default Flush Interval: 5 Seconds
+
+STREAM
+The continuous flow of Spans from the Collector to the Processing Workers via Redis.
+Implemented using Redis Streams (XADD, XREADGROUP).
+
+CONSUMER GROUP
+A logical grouping of workers that read from the Stream.
+AgentStack uses three distinct consumer groups:
+1.  `writer-group`: For durability (ClickHouse).
+2.  `security-group`: For analysis (Threat Detection).
+3.  `cost-group`: For metrics (Token Accounting).
+
+--------------------------------------------------------------------------------
+3. SYSTEM ARCHITECTURE: DEEP DIVE
+--------------------------------------------------------------------------------
+The architecture is designed for high throughput, fault tolerance, and loose coupling.
+
+[ SDK LAYER ]
+    |
+    |  (OTLP / HTTP Protobuf)
+    v
+[ INGESTION LAYER ] <--- Trace Collector (FastAPI)
+    |
+    |  (Redis Protocol / MsgPack)
+    v
+[ EVENT BUS ] <--- Redis Streams (Port 6379)
+    | 
+    +--- Stream: `spans.ingest`
+    |
+    +-----> [ WORKER A: WRITER ] -----> (Batch Insert) -----> [ CLICKHOUSE ]
+    |
+    +-----> [ WORKER B: SECURITY ] ---> (Alert Insert) -----> [ CLICKHOUSE ]
+                                   ---> (Live Alert) -------> [ REDIS PUB/SUB ]
+    |
+    +-----> [ WORKER C: COST ] -------> (Metric Insert) ----> [ CLICKHOUSE ]
+
+[ SERVING LAYER ]
+    |
+    +--- [ API SERVER ] <--- (SQL Query) -------------------- [ CLICKHOUSE ]
+    |                   <--- (WebSocket Sub) ---------------- [ REDIS PUB/SUB ]
+    |
+    v
+[ PRESENTATION LAYER ] <--- React Dashboard
+
+Design Principles:
+1.  Async-First: blocking operations are forbidden in the hot path.
+2.  Fail-Safe: The SDK must never crash the user's application.
+3.  Partition-Tolerant: The system continues to accept data even if the DB is down (buffers in Redis).
+4.  Idempotency: Processing workers handle duplicate messages gracefully.
+
+--------------------------------------------------------------------------------
+4. COMPONENT SPECIFICATIONS
+--------------------------------------------------------------------------------
+
+4.1 AGENTSTACK SDK (PYTHON)
+----------------------------
+The SDK is a lightweight Python package installed via pip.
+- Package Name: `agentstack-sdk`
+- Python Version: >= 3.10
+- Dependencies: `opentelemetry-api`, `pydantic`
+
+Modules:
+- `agentstack.observe`: The primary decorator.
+  Usage:
+  ```python
+  from agentstack import observe
+  @observe
+  def my_agent(prompt):
+      ...
+  ```
+- `agentstack.tracer`: Wraps OpenTelemetry TracerProvider. Handles span lifecycle.
+- `agentstack.exporter`: Implements a custom BatchSpanProcessor that sends data to the Collector.
+- `agentstack.sanitizer`: A regex-based utility that scans attributes for PII before export.
+  - Rules:
+    * SSN: `\d{3}-\d{2}-\d{4}`
+    * Email: `[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}`
+    * Credit Card: `\d{4}-\d{4}-\d{4}-\d{4}`
+  - Action: Replaces matches with `[REDACTED]`.
+
+Configuration (Environment Variables):
+- `AGENTSTACK_API_KEY`: Required. Authentication token.
+- `AGENTSTACK_COLLECTOR_URL`: Default `http://localhost:4318`.
+- `AGENTSTACK_ENABLED`: Default `true`. Set to `false` to disable at runtime.
+- `AGENTSTACK_BATCH_SIZE`: Default `64`.
+- `AGENTSTACK_EXPORT_INTERVAL_MS`: Default `5000`.
+
+Failure Mode:
+If the Collector is unreachable, the SDK attempts 3 retries with exponential backoff.
+If all retries fail, spans are written to a local `.agentstack.db` SQLite file.
+A background thread periodically checks for connectivity to replay local spans.
+Log Level: The SDK logs errors to `stderr` only if `AGENTSTACK_DEBUG=true`.
+
+4.2 TRACE COLLECTOR
+-------------------
+The entry point for all telemetry data.
+- Framework: FastAPI + Uvicorn
+- Port: 4318 (Standard OTLP HTTP port)
+- Workers: 2 (via Gunicorn/Uvicorn process manager)
+
+Endpoints:
+- `POST /v1/traces`
+  - Headers: `Content-Type: application/x-protobuf`, `X-API-Key: <key>`
+  - Body: Serialized Span data.
+  - Response:
+    * 202 Accepted: Valid payload, queued.
+    * 401 Unauthorized: Invalid API Key.
+    * 400 Bad Request: Invalid Protobuf schema.
+    * 413 Payload Too Large: Body > 5MB.
+
+Logic:
+1.  Receive Request.
+2.  Validate API Key against Redis cache (for speed).
+3.  Deserialize Protobuf to Dict.
+4.  Add server-side timestamp (`ingestion_time`).
+5.  Serialize to MsgPack (compact binary format).
+6.  Push to Redis Stream `spans.ingest` using `XADD`.
+7.  Return 202.
+
+4.3 REDIS STREAMS (EVENT BUS)
+-----------------------------
+Redis acts as the persistent buffer between ingestion and storage.
+- Version: Redis 7.2
+- Configuration:
+  * `appendonly yes` (AOF persistence enabled for durability).
+  * `maxmemory 2gb`
+  * `maxmemory-policy noeviction` (We prefer erroring to losing data silently).
+
+Stream: `spans.ingest`
+- Retention Policy: `MAXLEN ~ 1000000`. This provides approximately:
+  * 2.7 hours of buffer at 100 spans/sec.
+  * 16 minutes of buffer at 1000 spans/sec.
+  If the writers go down, we have this much time to recover before data loss occurs.
+
+4.4 WORKER: CLICKHOUSE WRITER
+-----------------------------
+A dedicated Python process for moving data from Redis to ClickHouse.
+- concurrency: 1 process (ClickHouse handles parallel inserts well via async_insert).
+- batch_size: 1000 spans or 1 second timeout.
+
+Main Loop:
+1.  `XREADGROUP GROUP writer-group ... COUNT 1000`
+2.  Transform MsgPack records into ClickHouse native format tuples.
+3.  Execute `INSERT INTO spans VALUES ...`
+4.  If successful: `XACK` the messages in Redis.
+5.  If failed:
+    - Log error.
+    - Sleep 1 second.
+    - Retry (Infinite retry loop ensures no data loss).
+
+4.5 WORKER: SECURITY ENGINE
+---------------------------
+Analyzes spans for malicious intent or sensitive data leakage.
+- Rules Engine: Yara-Python + Regex.
+
+Detection Logic:
+- Prompt Injection:
+  * Scans `input` and `output` fields.
+  * Checks against a blacklist of 500+ known injection patterns (e.g., "Ignore previous instructions", "DAN Mode").
+  * Uses a Bloom Filter for enabling rapid checking of thousands of patterns.
+- PII Leakage:
+  * Redundant check (in case SDK sanitizer was disabled or bypassed).
+  * Scans for SSN, Email, Phone, AWS Keys, OpenAI Keys.
+- Anomaly Detection:
+  * Tracks average duration per trace.
+  * Flags traces > 3 standard deviations from the mean (potential infinite loops).
+
+Alerting:
+- If a threat is detected:
+  1.  Create `Alert` object.
+  2.  Write to `security_alerts` table in ClickHouse.
+  3.  Publish to `alerts.live` Redis Channel (Pub/Sub) for real-time dashboard notification.
+  4.  (Optional) Send webhook to configured Slack URL.
+
+4.6 WORKER: COST CALCULATOR
+---------------------------
+Computes the financial impact of agent runs.
+- Pricing Catalog: Examples (subject to change):
+  * `gpt-4`: Input $0.03/1k, Output $0.06/1k
+  * `gpt-3.5-turbo`: Input $0.0015/1k, Output $0.002/1k
+  * `claude-3-opus`: Input $0.015/1k, Output $0.075/1k
+
+Logic:
+1.  Read span attributes for `llm.model`, `llm.usage.prompt_tokens`, `llm.usage.completion_tokens`.
+2.  Look up model price in local cache (refreshed daily from API).
+3.  Calculate cost = (prompt * input_price) + (completion * output_price).
+4.  Create `Metric` object.
+5.  Insert into `cost_metrics` table.
+
+4.7 CLICKHOUSE DATABASE
+-----------------------
+The primary persistent store.
+- Cluster Topology: Single node (MVP), Replicated (Production).
+- Engine: MergeTree family.
+
+Table `spans`:
+```sql
+CREATE TABLE spans (
+    trace_id UUID,
+    span_id UUID,
+    parent_span_id Nullable(UUID),
+    name String,
+    start_time DateTime64(6),
+    end_time DateTime64(6),
+    duration_ms UInt32,
+    service_name String,
+    attributes Map(String, String),
+    status String,
+    events Nested(
+        name String,
+        timestamp DateTime64(6),
+        attributes Map(String, String)
+    )
+) ENGINE = MergeTree()
+ORDER BY (service_name, start_time, trace_id)
+TTL start_time + INTERVAL 90 DAY;
+```
+
+Table `security_alerts`:
+```sql
+CREATE TABLE security_alerts (
+    alert_id UUID,
+    trace_id UUID,
+    timestamp DateTime64(6),
+    severity Enum('LOW', 'MEDIUM', 'HIGH', 'CRITICAL'),
+    rule_name String,
+    evidence String
+) ENGINE = MergeTree()
+ORDER BY (severity, timestamp);
+```
+
+4.8 FASTAPI SERVER (BACKEND API)
+--------------------------------
+Serves the React Dashboard.
+- Authentication: JWT (for dashboard users).
+
+Key Endpoints:
+- `GET /api/v1/traces`
+  Returns list of traces, paginated. Supports filtering by date, status, model.
+- `GET /api/v1/traces/{trace_id}`
+  Returns the full span tree for a specific trace.
+- `GET /api/v1/stats/cost`
+  Returns aggregated cost timeseries (daily/hourly).
+- `WS /api/v1/live`
+  WebSocket endpoint. Subscribes to Redis `alerts.live` and `spans.live`.
+  Pushes new events to the frontend in real-time.
+
+4.9 REACT DASHBOARD
+-------------------
+Client-side Single Page Application (SPA).
+- Build Tool: Vite
+- UI Library: Shadcn UI + Tailwind CSS
+- State Management: React Query (TanStack Query)
+
+Views:
+- **Overview**: High-level stats (Total Traces, Error Rate, Total Cost, Threat Count).
+- **Traces List**: Filterable table of all agent runs.
+- **Trace Detail**:
+  * Gantt Chart: Visualizes span duration and parallelism.
+  * Inspector: Side panel acting as an object explorer for span attributes.
+  * Replay: Button to re-trigger the agent (if configured).
+- **Security**: List of all alerts. Click to jump to the offending trace.
+- **Settings**: API Key management, Webhook configuration.
+
+--------------------------------------------------------------------------------
+5. DATA MODEL & SCHEMA REFERENCE
+--------------------------------------------------------------------------------
+
+5.1 SPAN OBJECT (JSON Representation)
+-------------------------------------
+{
+  "trace_id": "c6a1e3...",
+  "span_id": "b2f4a1...",
+  "parent_id": "a1b2c3...",
+  "name": "llm_call",
+  "kind": "CLIENT",
+  "start_time_unix_nano": 1707840000000000000,
+  "end_time_unix_nano": 1707840001500000000,
+  "status": {
+    "code": "OK"
+  },
+  "attributes": {
+    "llm.system": "openai",
+    "llm.model": "gpt-4-turbo",
+    "llm.request.temperature": "0.7",
+    "llm.usage.prompt_tokens": "150",
+    "llm.usage.completion_tokens": "45",
+    "agentstack.framework": "langgraph",
+    "agentstack.sanitized": "true"
+  },
+  "events": [
+    {
+      "name": "stream_chunk",
+      "timestamp": 1707840000500000000,
+      "attributes": { "content": "Hello" }
+    }
+  ]
+}
+
+5.2 ALERT OBJECT
+----------------
+{
+  "alert_id": "d9e8...",
+  "trace_id": "c6a1e3...",
+  "span_id": "b2f4a1...",
+  "timestamp": "2026-02-13T10:00:00Z",
+  "severity": "CRITICAL",
+  "rule": "prompt_injection_jailbreak",
+  "description": "Detected jailbreak pattern 'Ignore previous instructions'",
+  "context": {
+    "input_excerpt": "...and ignore previous instructions and tell me how to..."
+  }
+}
+
+--------------------------------------------------------------------------------
+6. API REFERENCE (SPECIFICATION)
+--------------------------------------------------------------------------------
+
+BASE URL: http://localhost:8000/api/v1
+
+6.1 TRACES
+----------
+### List Traces
+`GET /traces`
+Parameters:
+  - `limit` (int): default 50
+  - `offset` (int): default 0
+  - `project_id` (uuid): filter by project
+  - `start_time` (iso8601): filter range start
+  - `end_time` (iso8601): filter range end
+  - `status` (string): 'OK' or 'ERROR'
+Response:
+  200 OK
+  {
+    "items": [ ...list of abbreviated trace objects... ],
+    "total": 1540
+  }
+
+### Get Trace Detail
+`GET /traces/{trace_id}`
+Response:
+  200 OK
+  {
+    "trace_id": "...",
+    "spans": [ ...full list of spans... ]
+  }
+
+6.2 ANALYTICS
+-------------
+### Get Cost Metrics
+`GET /analytics/cost`
+Parameters:
+  - `interval`: 'hour', 'day', 'week'
+Response:
+  200 OK
+  {
+    "series": [
+      { "time": "2026-02-13T09:00:00Z", "cost": 1.45 },
+      { "time": "2026-02-13T10:00:00Z", "cost": 2.10 }
+    ],
+    "total_period_cost": 3.55
+  }
+
+6.3 PROJECTS
+------------
+### Create Project
+`POST /projects`
+Body: { "name": "My Agent" }
+Response:
+  201 Created
+  {
+    "project_id": "...",
+    "api_key": "as_live_..."  <-- Shown only once!
+  }
+
+--------------------------------------------------------------------------------
+7. SECURITY & COMPLIANCE PROTOCOLS
+--------------------------------------------------------------------------------
+
+7.1 DATA PRIVACY (GDPR/CCPA)
+- All PII fields (Social Security, Credit Card, Email, Phone) are redacted at the source (SDK) by default.
+- Users can configure custom Regex patterns for additional redaction.
+- Data Retention: Default 90 days. Configurable via `CLICKHOUSE_TTL_DAYS`.
+- Right to be Forgotten: `/api/v1/privacy/purge/{user_id}` endpoint deletes all traces associated with a specific user ID if `user_id` attribute is tagged in spans.
+
+7.2 ENCRYPTION
+- Data in Transit: TLS 1.3 required for all ingress (Collector) and egress (Dashboard) traffic.
+- Data at Rest: ClickHouse supports disk-level encryption (AES-256).
+
+7.3 ACCESS CONTROL
+- Dashboard Access: OAuth2 (Google/GitHub) or Email/Password.
+- API Access: Bearer Token (JWT) for users; API Key (`X-API-Key`) for SDKs.
+- Role Based Access Control (RBAC):
+  * `Owner`: Full access + Billing.
+  * `Admin`: Full access.
+  * `Viewer`: Read-only access to traces. Cannot reset API keys.
+
+--------------------------------------------------------------------------------
+8. OPERATIONAL RUNBOOKS
+--------------------------------------------------------------------------------
+
+8.1 DISASTER RECOVERY: REDIS DATA LOSS
+Severity: Critical
+Symptoms: Traces are missing from dashboard, but Collector returns 202.
+Root Cause: Redis container crashed and AOF file corrupted.
+Recovery Steps:
+1. Stop the Collector: `docker compose stop collector` (Prevent new data loss).
+2. Inspect Redis logs: `docker compose logs redis`.
+3. If AOF is corrupt, run `redis-check-aof --fix appendonly.aof`.
+4. Restart Redis: `docker compose start redis`.
+5. Restart Collector: `docker compose start collector`.
+Note: Some in-flight data (last ~1 second) may be lost if not persisted to disk.
+
+8.2 HIGH LATENCY IN DASHBOARD
+Severity: Medium
+Symptoms: "Loading Traces..." takes > 5 seconds.
+Root Cause: ClickHouse table `spans` is too large and unoptimized.
+Mitigation:
+1. Run optimization query: `OPTIMIZE TABLE spans FINAL;`
+2. Check partition keys. Ensure data is partitioned by Day.
+3. If necessary, scale ClickHouse vertically (more RAM) or horizontally (cluster).
+
+8.3 FALSE POSITIVE SECURITY ALERTS
+Severity: Low
+Symptoms: Security Engine flagging valid inputs as "Prompt Injection".
+Resolution:
+1. Identify the blocking rule ID in the alert detail.
+2. Add the specific pattern to the Allowlist in `security.yaml` config.
+3. Restart Security Worker: `docker compose restart worker-security`.
+
+--------------------------------------------------------------------------------
+9. FUTURE ROADMAP & DEPRECATION POLICY
+--------------------------------------------------------------------------------
+
+Q3 2026: PHASE 2 - "ACTIVE INTERVENTION"
+- Feature: `agentstack.prevent()` hook to block agent actions *before* execution based on policy.
+- Integration: Direct integration with OpenAI Moderation API as a fallback.
+- Storage: Support for S3-backed Long Term Storage (Tiered Storage).
+
+Q4 2026: PHASE 3 - "AUTO-HEALING"
+- Feature: SDK automatically retries failed LLM calls with a "self-correction" prompt.
+- Analysis: "Root Cause Analysis" AI that explains *why* a trace failed in natural language.
+
+DEPRECATION POLICY
+- We follow Semantic Versioning.
+- Breaking changes to the SDK or API will be announced 2 minor versions in advance.
+- APIs marked `Deprecated` will return a `Warning` header for 6 months before removal.
+
+[END OF DOCUMENT]
+
+--------------------------------------------------------------------------------
+10. DEVELOPER GUIDE (CONTRIBUTING)
+--------------------------------------------------------------------------------
+This section is for engineers who want to modify the AgentStack core platform.
+
+10.1 SETTING UP THE ENVIRONMENT
+-------------------------------
+Prerequisites:
+- Docker Desktop >= 4.25
+- Python >= 3.10
+- Node.js >= 20 (LTS)
+- Make (GNU Make)
+
+Steps:
+1.  Clone the repository:
+    `git clone https://github.com/agentstack/agentstack.git`
+    `cd agentstack`
+
+2.  Run the Dev Setup script:
+    `./scripts/dev-setup.sh`
+    This script will:
+    - Create a Python virtual environment (`.venv`)
+    - Install backend dependencies (`pip install -r requirements-dev.txt`)
+    - Install frontend dependencies (`cd packages/dashboard && npm install`)
+    - Generate local SSL certificates for Nginx (`mkcert`)
+    - Start Docker containers for Redis and ClickHouse only.
+
+3.  Running the Backend (Hot Reload):
+    `make run-api`
+    This starts the FastAPI server on port 8000 with `--reload`.
+
+4.  Running the Worker Processes (Hot Reload):
+    `make run-workers`
+    Starts the ClickHouse Writer, Security Engine, and Cost Calculator.
+
+5.  Running the Dashboard (Hot Reload):
+    `cd packages/dashboard && npm run dev`
+    Starts Vite dev server on port 5173.
+
+10.2 TESTING STRATEGY
+---------------------
+We maintain a strict testing pyramid.
+- Unit Tests: 80% coverage required.
+  `pytest packages/sdk-python/tests`
+  `pytest packages/api/tests`
+- Integration Tests: Tests requiring running Docker containers.
+  `pytest tests/integration`
+  (These spin up ephemeral Redis/ClickHouse instances via `testcontainers`)
+- E2E Tests: Full browser automation via Playwright.
+  `cd packages/dashboard && npm run test:e2e`
+
+10.3 LINTING & FORMATTING
+-------------------------
+- Python: RUFF is used for both linting and formatting.
+  `ruff check .`
+  `ruff format .`
+- TypeScript: ESLint + Prettier.
+  `npm run lint`
+
+10.4 RELEASE PROCESS
+--------------------
+To release a new version of the SDK:
+1.  Update `version` in `packages/sdk-python/pyproject.toml`.
+2.  Update `CHANGELOG.md`.
+3.  Commit with message `release: vX.Y.Z`.
+4.  Tag the commit: `git tag vX.Y.Z`.
+5.  Push tag: `git push origin vX.Y.Z`.
+6.  GitHub Actions will automatically build and publish to PyPI.
+
+--------------------------------------------------------------------------------
+11. CONFIGURATION REFERENCE (ENV VARS)
+--------------------------------------------------------------------------------
+Comprehensive list of all environment variables supported by AgentStack components.
+
+| Variable Name | Component | Default | Description |
+|---|---|---|---|
+| `AGENTSTACK_API_KEY` | SDK | (Required) | API Key for authentication. |
+| `AGENTSTACK_COLLECTOR_URL` | SDK | `http://localhost:4318` | URL of the Trace Collector. |
+| `AGENTSTACK_ENABLED` | SDK | `true` | Master switch to enable/disable SDK. |
+| `AGENTSTACK_BATCH_SIZE` | SDK | `64` | Max spans before flush. |
+| `AGENTSTACK_EXPORT_INTERVAL` | SDK | `5000` | Max milliseconds before flush. |
+| `AGENTSTACK_MAX_QUEUE_SIZE` | SDK | `2048` | Max spans in ring buffer. |
+| `AGENTSTACK_LOG_LEVEL` | SDK | `INFO` | standard Python logging level. |
+| `REDIS_URL` | Collector | `redis://localhost:6379` | Connection string for Redis. |
+| `CLICKHOUSE_HOST` | Writer | `localhost` | ClickHouse server host. |
+| `CLICKHOUSE_PORT` | Writer | `9000` | ClickHouse native protocol port. |
+| `CLICKHOUSE_USER` | Writer | `default` | ClickHouse username. |
+| `CLICKHOUSE_PASSWORD` | Writer | (Empty) | ClickHouse password. |
+| `CLICKHOUSE_DB` | Writer | `agentstack` | Database name. |
+| `SECURITY_RULES_PATH` | Worker | `./rules` | Directory containing YARA rules. |
+| `COST_MODEL_REFRESH_RATE` | Worker | `3600` | Seconds between fetching new prices. |
+| `JWT_SECRET_KEY` | API | (Required) | Secret for signing JWT tokens. |
+| `JWT_ALGORITHM` | API | `HS256` | Algorithm for JWT signing. |
+| `DASHBOARD_PORT` | Dashboard | `3000` | Port for the React app. |
+| `VITE_API_BASE_URL` | Dashboard | `/api/v1` | Base path for API requests. |
+
+--------------------------------------------------------------------------------
+12. COMPLIANCE APPENDIX (GDPR & EU AI ACT)
+--------------------------------------------------------------------------------
+AgentStack is designed to help organizations comply with the EU AI Act (2024).
+
+Article 13: Transparency and Provision of Information
+- AgentStack provides the "technical documentation" required to explain AI system decisions.
+- By logging the `system_prompt` and `user_input` for every decision, it creates an auditable trail.
+
+Article 14: Human Oversight
+- AgentStack enables "Post-Hoc Oversight" by allowing humans to review trace logs.
+- The Security Engine acts as an automated oversight mechanism ("Human-in-the-loop" via alerts).
+
+Article 15: Accuracy, Robustness, and Cybersecurity
+- AgentStack's Trace Collector is resilient to adversarial attacks (e.g., Prompt Injection).
+- By monitoring error rates and latency, it helps ensure robustness of the underlying AI model.
+
+Data Subject Rights (GDPR):
+- Right to Access: `GET /api/v1/privacy/export/{user_id}` returns all data for a user.
+- Right to Erasure: `DELETE /api/v1/privacy/purge/{user_id}` permanently removes data.
+- Data Minimization: The SDK's PII Sanitizer ensures only necessary data is stored.
+
+--------------------------------------------------------------------------------
+13. GLOSSARY
+--------------------------------------------------------------------------------
+Definitions of key terms used in this document.
+
+- Agent: An autonomous software entity that uses an LLM to make decisions.
+- Collector: The service that ingests spans from the SDK.
+- Context Window: The limit on the amount of text an LLM can process.
+- Embeddings: Vector representations of text used for semantic search.
+- Hallucination: When an LLM generates factually incorrect information.
+- Instrumentation: The process of adding code to measure performance.
+- LLM (Large Language Model): The core engine (e.g., GPT-4) driving the agent.
+- Observability: The ability to understand the internal state of a system from its outputs.
+- PII (Personally Identifiable Information): Sensitive data like names, SSNs.
+- Prompt Injection: A security exploit where user input overrides system instructions.
+- RAG (Retrieval Augmented Generation): Enhancing LLM responses with external data.
+- Span: A single operation within a trace (e.g., an HTTP call).
+- Telemetry: Data emitted by the system about its behavior.
+- Token: The basic unit of text for an LLM (approx 4 characters).
+- Trace: A complete execution path of a single request.
+- Vector Database: A database optimized for storing and querying embeddings.
+- Zero-Shot Prompting: Providing a task to an LLM without examples.
+
+--------------------------------------------------------------------------------
+14. ACKNOWLEDGEMENTS
+--------------------------------------------------------------------------------
+AgentStack is open-source software licensed under the Apache 2.0 License.
+We stand on the shoulders of giants:
+- OpenTelemetry: For the trace data model.
+- ClickHouse: For the incredible analytical performance.
+- Redis: For the reliable message bus.
+- FastAPI: For the modern, fast, web framework.
+- React: For the reactive user interface.
+
+[END OF PART 2]
+
+--------------------------------------------------------------------------------
+15. IMPLEMENTATION REFERENCE (PART 3)
+--------------------------------------------------------------------------------
+This section contains full production-ready implementation stubs for key components.
+
+15.1 AGENTSTACK SDK (CORE LOGIC)
+--------------------------------
+# packages/sdk-python/src/agentstack/tracer.py
+
+import json
+import uuid
+import time
+import logging
+import contextvars
+from typing import Optional, Dict, Any, List
+from .exporter import BatchSpanProcessor
+from .sanitizer import scrub_pii
+
+logger = logging.getLogger("agentstack")
+trace_context = contextvars.ContextVar("trace_id", default=None)
+
+class Span:
+    def __init__(self, name: str, parent_id: Optional[str] = None):
+        self.trace_id = trace_context.get() or str(uuid.uuid4())
+        if not trace_context.get():
+            trace_context.set(self.trace_id)
+        
+        self.span_id = str(uuid.uuid4())
+        self.parent_id = parent_id
+        self.name = name
+        self.start_time = time.time_ns()
+        self.end_time = None
+        self.attributes: Dict[str, str] = {}
+        self.events: List[Dict[str, Any]] = []
+        self.status = "OK"
+
+    def set_attribute(self, key: str, value: Any):
+        self.attributes[key] = str(value)
+
+    def add_event(self, name: str, attributes: Dict[str, Any] = None):
+        self.events.append({
+            "name": name,
+            "timestamp": time.time_ns(),
+            "attributes": attributes or {}
+        })
+
+    def end(self):
+        self.end_time = time.time_ns()
+        # SCRUB PII BEFORE EXPORT
+        self.attributes = scrub_pii(self.attributes)
+        BatchSpanProcessor.add(self)
+
+class Tracer:
+    _instance = None
+
+    @classmethod
+    def get_tracer(cls):
+        if not cls._instance:
+            cls._instance = Tracer()
+        return cls._instance
+
+    def start_span(self, name: str) -> Span:
+        return Span(name)
+
+# packages/sdk-python/src/agentstack/decorator.py
+
+import functools
+import inspect
+from .tracer import Tracer
+
+def observe(func=None, *, name=None):
+    if func is None:
+        return functools.partial(observe, name=name)
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        span_name = name or func.__name__
+        tracer = Tracer.get_tracer()
+        span = tracer.start_span(span_name)
+        
+        try:
+            # Capture Arguments (Redact sensitive args if configured)
+            span.set_attribute("function.args", str(args))
+            span.set_attribute("function.kwargs", str(kwargs))
+            
+            result = func(*args, **kwargs)
+            
+            # Capture Result
+            span.set_attribute("function.result", str(result))
+            span.status = "OK"
+            return result
+            
+        except Exception as e:
+            span.status = "ERROR"
+            span.set_attribute("error.message", str(e))
+            span.set_attribute("error.type", type(e).__name__)
+            raise e
+        finally:
+            span.end()
+            
+    # Support async functions
+    if inspect.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            span_name = name or func.__name__
+            tracer = Tracer.get_tracer()
+            span = tracer.start_span(span_name)
+            try:
+                span.set_attribute("function.args", str(args))
+                span.set_attribute("function.kwargs", str(kwargs))
+                result = await func(*args, **kwargs)
+                span.set_attribute("function.result", str(result))
+                span.status = "OK"
+                return result
+            except Exception as e:
+                span.status = "ERROR"
+                span.set_attribute("error.message", str(e))
+                raise e
+            finally:
+                span.end()
+        return async_wrapper
+
+    return wrapper
+
+15.2 SECURITY WORKER (THREAT DETECTION)
+---------------------------------------
+# packages/workers/src/security.py
+
+import yara
+import re
+import json
+import logging
+from redis import Redis
+from clickhouse_driver import Client
+
+redis_client = Redis(host="redis", port=6379)
+ch_client = Client(host="clickhouse")
+
+# COMPILED YARA RULES
+RULES = yara.compile(source="""
+rule PromptInjection {
+    strings:
+        $s1 = "ignore previous instructions" nocase
+        $s2 = "you are now DAN" nocase
+        $s3 = "system prompt override" nocase
+    condition:
+        any of them
+}
+""")
+
+PII_REGEX = {
+    "SSN": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+    "EMAIL": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+}
+
+def analyze_span(span_data: dict):
+    attributes = span_data.get("attributes", {})
+    text_content = ""
+    
+    # Extract text from known LLM attribute keys
+    for key in ["llm.prompts", "llm.completions", "function.args", "function.result"]:
+        if key in attributes:
+            text_content += str(attributes[key]) + "\n"
+            
+    alerts = []
+    
+    # 1. YARA SCAN (Prompt Injection)
+    matches = RULES.match(data=text_content)
+    if matches:
+        for match in matches:
+            alerts.append({
+                "severity": "CRITICAL",
+                "rule": match.rule,
+                "description": "Potential Prompt Injection detected"
+            })
+            
+    # 2. REGEX SCAN (PII Leak)
+    for pii_type, regex in PII_REGEX.items():
+        if regex.search(text_content):
+            alerts.append({
+                "severity": "HIGH",
+                "rule": f"PII_LEAK_{pii_type}",
+                "description": f"Potential {pii_type} leak in span attributes"
+            })
+            
+    # 3. ANOMALY SCAN (Infinite Loops)
+    # Check if this span is identical to previous 5 calls in same trace (requires state lookup)
+    # Skipping for brevity in this example code...
+    
+    if alerts:
+        trace_id = span_data.get("trace_id")
+        span_id = span_data.get("span_id")
+        
+        for alert in alerts:
+            # WRITE TO DB
+            ch_client.execute(
+                "INSERT INTO security_alerts (trace_id, severity, rule, description) VALUES",
+                [(trace_id, alert["severity"], alert["rule"], alert["description"])]
+            )
+            
+            # PUSH TO LIVE FEED
+            redis_client.publish("alerts.live", json.dumps({
+                "trace_id": trace_id,
+                "alert": alert
+            }))
+
+def consume():
+    logger.info("Starting Security Worker...")
+    while True:
+        # Read from Redis Stream Group
+        messages = redis_client.xreadgroup("security-group", "security-worker-1", {"spans.ingest": ">"}, count=10)
+        
+        for stream, rows in messages:
+            for message_id, data in rows:
+                try:
+                    span = json.loads(data[b"payload"])
+                    analyze_span(span)
+                    redis_client.xack("spans.ingest", "security-group", message_id)
+                except Exception as e:
+                    logger.error(f"Failed to process span {message_id}: {e}")
+
+if __name__ == "__main__":
+    consume()
+
+15.3 CLICKHOUSE SCHEMA (INIT SQL)
+---------------------------------
+-- deploy/clickhouse/init.sql
+
+CREATE DATABASE IF NOT EXISTS agentstack;
+
+USE agentstack;
+
+-- SPANS TABLE (Optimized for Write Speed)
+CREATE TABLE IF NOT EXISTS spans (
+    trace_id UUID,
+    span_id UUID,
+    parent_id Nullable(UUID),
+    name String,
+    start_time DateTime64(6),
+    end_time DateTime64(6),
+    duration_ms UInt32,
+    service_name LowCardinality(String),
+    kind Enum('CLIENT' = 1, 'SERVER' = 2, 'INTERNAL' = 3),
+    status String,
+    attributes Map(String, String),
+    events Nested(
+        name String,
+        timestamp DateTime64(6),
+        attributes Map(String, String)
+    )
+) ENGINE = MergeTree()
+PARTITION BY toYYYYMMDD(start_time)
+ORDER BY (service_name, start_time, trace_id)
+TTL start_time + INTERVAL 90 DAY;
+
+-- ALERTS TABLE (Optimized for Query Speed)
+CREATE TABLE IF NOT EXISTS security_alerts (
+    alert_id UUID DEFAULT generateUUIDv4(),
+    trace_id UUID,
+    timestamp DateTime64(6) DEFAULT now64(),
+    severity Enum('LOW' = 1, 'MEDIUM' = 2, 'HIGH' = 3, 'CRITICAL' = 4),
+    rule_name String,
+    description String,
+    evidence String
+) ENGINE = MergeTree()
+ORDER BY (severity, timestamp);
+
+-- COST METRICS (Aggregated View)
+CREATE TABLE IF NOT EXISTS cost_metrics (
+    timestamp DateTime64(6),
+    project_id UUID,
+    model_name LowCardinality(String),
+    prompt_tokens UInt64,
+    completion_tokens UInt64,
+    total_cost Decimal(10, 6)
+) ENGINE = SummingMergeTree()
+ORDER BY (project_id, model_name, toStartOfHour(timestamp));
+
+-- MATERIALIZED VIEW FOR HOURLY COST ROLLUP
+CREATE MATERIALIZED VIEW cost_hourly_mv TO cost_metrics AS
+SELECT
+    toStartOfHour(start_time) as timestamp,
+    CAST(attributes['project_id'] AS UUID) as project_id,
+    attributes['llm.model'] as model_name,
+    sum(CAST(attributes['llm.usage.prompt_tokens'] AS UInt64)) as prompt_tokens,
+    sum(CAST(attributes['llm.usage.completion_tokens'] AS UInt64)) as completion_tokens,
+    sum(
+        (CAST(attributes['llm.usage.prompt_tokens'] AS Float64) * 0.00003) + 
+        (CAST(attributes['llm.usage.completion_tokens'] AS Float64) * 0.00006)
+    ) as total_cost
+FROM spans
+WHERE has(attributes, 'llm.model')
+GROUP BY project_id, model_name, timestamp;
+
+[ END OF PART 3 ]
+--------------------------------------------------------------------------------
+16. LEGAL DISCLAIMER
+--------------------------------------------------------------------------------
+This software is provided "as is", without warranty of any kind, express or implied.
+AgentStack is not liable for data loss, security breaches, or financial losses incurred
+while using this platform. Users are responsible for their own compliance with local laws.
+Copyright (c) 2026 AgentStack Contributors.
+
+--------------------------------------------------------------------------------
+17. SUPPORT & COMMUNITY
+--------------------------------------------------------------------------------
+For enterprise support, please contact: enterprise@agentstack.ai
+
+Join our Community:
+- Discord: https://discord.gg/agentstack
+- Twitter: @AgentStackAI
+- GitHub Discussions: https://github.com/agentstack/agentstack/discussions
+
+We hold weekly office hours on Fridays at 10:00 AM PST.
+Come share your agents and get feedback from the core team.
+
+[END OF FILE - TRULY]

@@ -1,0 +1,28 @@
+
+graph TD
+    A[Developer Calls Function] --> B[@observe Decorator Activates]
+    B --> C[Generate trace_id + span_id]
+    C --> D[Start Timer]
+    D --> E{Which Framework Detected?}
+    E -->|LangGraph| F[Hook Nodes + Edges]
+    E -->|CrewAI| G[Hook Tasks + Agents]
+    E -->|AutoGen| H[Hook Messages]
+    E -->|Custom| I[Wrap Function]
+    F --> J[Execute Original Function]
+    G --> J
+    H --> J
+    I --> J
+    J --> K[Stop Timer]
+    K --> L[Capture Metadata]
+    L --> M{Contains PII?}
+    M -->|Yes| N[Scrub SSN + Email + Cards]
+    M -->|No| O[Span Ready]
+    N --> O
+    O --> P[Add to Ring Buffer]
+    P --> Q{Buffer Full or 5s Timer?}
+    Q -->|Yes| R[Batch Export via HTTP]
+    Q -->|No| S[Wait for More Spans]
+    R --> T{Collector Available?}
+    T -->|Yes| U[Delivered]
+    T -->|No| V[Save to Local SQLite]
+    V --> W[Resend When Collector Returns]
