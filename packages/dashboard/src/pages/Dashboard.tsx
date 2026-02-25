@@ -68,28 +68,24 @@ const Dashboard: React.FC = () => {
                 <MetricCard
                     title="Total Traces"
                     value={metrics?.totalTraces.toLocaleString() || "0"}
-                    color="blue"
                     icon="📊"
                     trend="+12%"
                 />
                 <MetricCard
                     title="Error Rate"
                     value={`${metrics?.errorRate || "0"}%`}
-                    color="red"
                     icon="⚠️"
                     trend="-2.4%"
                 />
                 <MetricCard
                     title="Avg Latency"
                     value={`${metrics?.avgLatency || "0"}ms`}
-                    color="green"
                     icon="⚡"
                     trend="-15ms"
                 />
                 <MetricCard
                     title="Total Cost"
                     value={`$${metrics?.totalCost || "0.00"}`}
-                    color="purple"
                     icon="💰"
                     trend="+$1.40"
                 />
@@ -131,12 +127,11 @@ const Dashboard: React.FC = () => {
 interface MetricCardProps {
     title: string;
     value: string;
-    color: "blue" | "red" | "green" | "purple";
     icon: string;
     trend?: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({ title, value, color, icon, trend }) => {
+const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, trend }) => {
     const isPositiveTrend = trend?.startsWith('+');
 
     return (

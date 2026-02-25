@@ -3,7 +3,7 @@ name: AgentStack Release
 on:
   push:
     tags:
-      - 'v*'  # Trigger on tags like v1.0.0
+      - 'v*'  # Trigger on tags like v0.1.0a1
 
 jobs:
   pypi-publish:
@@ -13,7 +13,7 @@ jobs:
     # Needs environment configuration in GitHub repo
     environment:
       name: pypi
-      url: https://pypi.org/p/agentstack
+      url: https://pypi.org/p/agentstack-sdk
       
     permissions:
       id-token: write  # Important for Trusted Publishing
@@ -31,13 +31,13 @@ jobs:
       run: python -m pip install --upgrade build
       
     - name: Build SDK distribution
-      working-directory: agentstack/packages/sdk-python
+      working-directory: packages/sdk-python
       run: python -m build
       
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        packages-dir: agentstack/packages/sdk-python/dist/
+        packages-dir: packages/sdk-python/dist/
 
   docker-publish:
     name: Build and publish Docker images
@@ -63,7 +63,7 @@ jobs:
     - name: Build and push API image
       uses: docker/build-push-action@v5
       with:
-        context: ./agentstack/packages/api
+        context: ./packages/api
         push: true
         tags: agentstack/api:latest,agentstack/api:${{ github.ref_name }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -71,7 +71,7 @@ jobs:
     - name: Build and push Collector image
       uses: docker/build-push-action@v5
       with:
-        context: ./agentstack/packages/collector
+        context: ./packages/collector
         push: true
         tags: agentstack/collector:latest,agentstack/collector:${{ github.ref_name }}
         labels: ${{ steps.meta.outputs.labels }}

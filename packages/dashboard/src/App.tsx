@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
-import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProjectProvider } from "./components/ProjectSwitcher";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import Security from "./pages/Security";

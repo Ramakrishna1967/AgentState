@@ -7,13 +7,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentstack-sdk"
-version = "0.1.0-alpha"
+version = "0.1.0a1"
 description = "Chrome DevTools for AI Agents — observability SDK for LangGraph, CrewAI, AutoGen"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "AgentStack Contributors" },
+    { name = "Ramakrishna", email = "ramakrishna1967@users.noreply.github.com" },
 ]
 keywords = ["ai", "agents", "observability", "tracing", "llm", "langgraph", "crewai", "autogen"]
 classifiers = [
@@ -41,10 +41,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/agentstack/agentstack"
-Documentation = "https://github.com/agentstack/agentstack/tree/main/docs"
-Repository = "https://github.com/agentstack/agentstack"
-Issues = "https://github.com/agentstack/agentstack/issues"
+Homepage = "https://github.com/Ramakrishna1967/AgentState"
+Documentation = "https://github.com/Ramakrishna1967/AgentState#readme"
+Repository = "https://github.com/Ramakrishna1967/AgentState"
+Issues = "https://github.com/Ramakrishna1967/AgentState/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentstack"]
