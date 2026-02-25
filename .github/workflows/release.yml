@@ -13,7 +13,7 @@ jobs:
     # Needs environment configuration in GitHub repo
     environment:
       name: pypi
-      url: https://pypi.org/p/agentstack-sdk
+      url: https://pypi.org/p/agentstate-sdk
       
     permissions:
       id-token: write  # Important for Trusted Publishing

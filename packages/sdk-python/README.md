@@ -8,7 +8,7 @@
 ## Install
 
 ```bash
-pip install agentstack-sdk
+pip install agentstate-sdk
 ```
 
 ## Quick Start
