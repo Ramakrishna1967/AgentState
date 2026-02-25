@@ -2,7 +2,7 @@
 
 <br>
 
-# AgentStack
+# AgentState
 
 ### The open-source observability platform for AI agents
 
