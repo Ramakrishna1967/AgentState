@@ -46,7 +46,7 @@ services:
   # --- Backend ---
   api:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/api/Dockerfile
     container_name: agentstack-api
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -71,7 +71,7 @@ services:
 
   collector:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/collector/Dockerfile
     container_name: agentstack-collector
     command: uvicorn collector.server:app --host 0.0.0.0 --port 4318
@@ -94,7 +94,7 @@ services:
   # --- Workers ---
   worker-writer:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/workers/Dockerfile
     container_name: agentstack-worker-writer
     command: python -m workers.clickhouse_writer
@@ -112,7 +112,7 @@ services:
 
   worker-security:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/workers/Dockerfile
     container_name: agentstack-worker-security
     command: python -m workers.security_engine
@@ -130,7 +130,7 @@ services:
 
   worker-cost:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/workers/Dockerfile
     container_name: agentstack-worker-cost
     command: python -m workers.cost_calculator
@@ -149,11 +149,11 @@ services:
   # --- Frontend ---
   dashboard:
     build:
-      context: ../agentstack
+      context: ..
       dockerfile: packages/dashboard/Dockerfile
     container_name: agentstack-dashboard
     volumes:
-      - ../agentstack/packages/dashboard:/app
+      - ../packages/dashboard:/app
       - /app/node_modules
     deploy:
       resources:

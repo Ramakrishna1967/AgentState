@@ -26,9 +26,9 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install flake8 pytest bandit httpx
-        pip install -e ./agentstack/packages/sdk-python
-        pip install -r ./agentstack/packages/api/requirements.txt || true
-        pip install -r ./agentstack/packages/collector/requirements.txt || true
+        pip install -e ./packages/sdk-python
+        pip install -r ./packages/api/requirements.txt || true
+        pip install -r ./packages/collector/requirements.txt || true
 
     - name: Lint with flake8
       run: |
@@ -40,7 +40,7 @@ jobs:
     - name: Security scan with Bandit
       run: |
         # Run bandit recursively to ensure no new vulnerabilities are introduced
-        bandit -r agentstack/packages -ll -ii -s B104,B101
+        bandit -r packages -ll -ii -s B104,B101
 
     - name: Test with pytest
       run: |
@@ -58,23 +58,24 @@ jobs:
       with:
         node-version: 18.x
         cache: 'npm'
-        cache-dependency-path: agentstack/packages/dashboard/package-lock.json
+        cache-dependency-path: packages/dashboard/package-lock.json
         
     - name: Install dependencies
-      working-directory: agentstack/packages/dashboard
+      working-directory: packages/dashboard
       run: npm ci
       
     - name: Lint & Typecheck
-      working-directory: agentstack/packages/dashboard
+      working-directory: packages/dashboard
       run: |
         # Only run linting/typechecking if scripts are defined
         npm run lint --if-present
         npx tsc -b
         
     - name: Build
-      working-directory: agentstack/packages/dashboard
+      working-directory: packages/dashboard
       run: npm run build
       
     - name: Test
-      working-directory: agentstack/packages/dashboard
+      working-directory: packages/dashboard
       run: npm run test --if-present
+

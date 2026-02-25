@@ -1,0 +1,198 @@
+/* Copyright 2026 AgentStack Contributors */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/**
+ * Global styles with premium dark theme design tokens
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brutalist Hacker Theme Color Palette */
+  --bg-primary: #000000;
+  --bg-secondary: #050505;
+  --bg-tertiary: #0a0a0a;
+  --bg-hover: #111111;
+
+  --text-primary: #ffffff;
+  --text-secondary: #00ff41;
+  /* Neon green text */
+  --text-tertiary: #666666;
+
+  --border-primary: #333333;
+  --border-secondary: #00ff41;
+
+  --accent-blue: #00ff41;
+  /* Map all primary accents to green to enforce theme */
+  --accent-green: #00ff41;
+  --accent-orange: #ff9f0a;
+  --accent-red: #ff003c;
+  --accent-purple: #8a2be2;
+
+  /* Hard block shadows for brutalist feel */
+  --shadow-sm: 2px 2px 0 0 rgb(0 255 65 / 0.2);
+  --shadow-md: 4px 4px 0 0 rgb(0 255 65 / 0.3);
+  --shadow-lg: 6px 6px 0 0 rgb(0 255 65 / 0.4);
+  --shadow-xl: 8px 8px 0 0 rgb(0 255 65 / 0.5);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Utility classes */
+.glass-effect {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  /* Removed rounded corners and blur for raw look */
+}
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 0px;
+  /* Brutalist sharp edges */
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+  transition: all 0.1s ease;
+}
+
+.card:hover {
+  border-color: var(--border-secondary);
+  box-shadow: var(--shadow-lg);
+  transform: translate(-2px, -2px);
+}
+
+.btn-primary {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0px;
+  border: 1px solid var(--border-secondary);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--bg-hover);
+  transform: translate(-1px, -1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0px;
+  border: 1px solid var(--border-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-secondary);
+  color: var(--text-secondary);
+}
+
+/* Status badges */
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.badge-ok {
+  background: rgba(48, 209, 88, 0.15);
+  color: var(--accent-green);
+}
+
+.badge-error {
+  background: rgba(255, 69, 58, 0.15);
+  color: var(--accent-red);
+}
+
+.badge-warning {
+  background: rgba(255, 159, 10, 0.15);
+  color: var(--accent-orange);
+}
+
+/* Animations */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}

@@ -1,0 +1,57 @@
+# ── Environment & Secrets ──────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ── Python ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# ── Virtual Environments ──────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Testing & Coverage ────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node.js / Dashboard ──────────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+build.log
+
+# ── IDEs & Editors ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── SQLite databases (local dev) ──────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+.agentstack.db
+
+# ── OS files ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
