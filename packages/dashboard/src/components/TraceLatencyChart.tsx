@@ -12,7 +12,7 @@ import {
 } from "recharts";
 
 interface TraceLatencyChartProps {
-    data: any[]; // [ { name: "LLM Call", latency: 1200, category: "llm" }, ... ]
+    data: { name: string, latency: number, category: string }[];
 }
 
 export const TraceLatencyChart: React.FC<TraceLatencyChartProps> = ({ data }) => {

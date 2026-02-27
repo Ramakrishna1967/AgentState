@@ -49,6 +49,9 @@ async def stop_ws_consumer():
     if redis_client:
         await redis_client.close()
         
+    redis_client = None
+    consumer_task = None
+        
     logger.info("WebSocket Redis consumer stopped")
 
 

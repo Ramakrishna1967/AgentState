@@ -101,7 +101,7 @@ export const Analytics: React.FC = () => {
                     <div>
                         <h2 className="text-xs font-bold tracking-widest text-[var(--text-tertiary)] uppercase mb-2">[TOTAL_SPEND_7D]</h2>
                         <div className="text-4xl font-extrabold text-[var(--accent-blue)] tracking-tight">
-                            ${data?.data?.reduce((acc: number, curr: any) => acc + (curr.total_cost || 0), 0).toFixed(2) || "0.00"}
+                            ${data?.data?.reduce((acc: number, curr: { total_cost?: number }) => acc + (curr.total_cost || 0), 0).toFixed(2) || "0.00"}
                         </div>
                     </div>
                     <div className="h-16 w-16 bg-black border-[2px] border-[var(--border-primary)] flex items-center justify-center shadow-[var(--shadow-sm)] grayscale">

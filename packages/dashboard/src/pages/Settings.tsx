@@ -100,7 +100,7 @@ const Settings: React.FC = () => {
                     </p>
                 ) : (
                     <div className="space-y-3">
-                        {projects?.map((project: any) => (
+                        {projects?.map((project: { id: string, name: string, created_at: string }) => (
                             <div
                                 key={project.id}
                                 className="flex items-center justify-between bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg px-4 py-3 hover:bg-[var(--bg-hover)] transition-colors"

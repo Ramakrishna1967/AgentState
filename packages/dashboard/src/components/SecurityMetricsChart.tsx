@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 interface SecurityMetricsChartProps {
-    data: any[]; // { timestamp: string, anomalies: number, prompt_injections: number }
+    data: { timestamp: string, anomalies: number, prompt_injections: number }[];
 }
 
 export const SecurityMetricsChart: React.FC<SecurityMetricsChartProps> = ({ data }) => {
@@ -30,10 +30,10 @@ export const SecurityMetricsChart: React.FC<SecurityMetricsChartProps> = ({ data
                 <XAxis
                     dataKey="timestamp"
                     stroke="var(--text-secondary)"
-                    tickFormatter={(val: any) => {
+                    tickFormatter={(val: string | number) => {
                         const date = new Date(val);
                         // If it's a date string, handle formatting. If it's a categorical 'day', just return.
-                        return isNaN(date.getTime()) ? val : date.toLocaleDateString();
+                        return isNaN(date.getTime()) ? String(val) : date.toLocaleDateString();
                     }}
                 />
                 <YAxis stroke="var(--text-secondary)" />

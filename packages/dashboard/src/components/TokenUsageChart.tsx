@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 interface TokenUsageChartProps {
-    data: any[]; // { timestamp: string, prompt_tokens: number, completion_tokens: number }
+    data: { timestamp: string, prompt_tokens: number, completion_tokens: number }[];
 }
 
 export const TokenUsageChart: React.FC<TokenUsageChartProps> = ({ data }) => {
@@ -40,7 +40,7 @@ export const TokenUsageChart: React.FC<TokenUsageChartProps> = ({ data }) => {
                 <XAxis
                     dataKey="timestamp"
                     stroke="var(--text-secondary)"
-                    tickFormatter={(val: any) => new Date(val).toLocaleDateString()}
+                    tickFormatter={(val: string | number) => new Date(val).toLocaleDateString()}
                 />
                 <YAxis stroke="var(--text-secondary)" />
                 <Tooltip

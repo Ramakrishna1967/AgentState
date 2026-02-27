@@ -11,7 +11,7 @@ import {
 } from "recharts";
 
 interface CostChartProps {
-    data: any[]; // { timestamp: string, "gpt-4": number, "total_cost": number }
+    data: Record<string, string | number>[]; // { timestamp: string, "gpt-4": number, "total_cost": number }
 }
 
 export const CostChart: React.FC<CostChartProps> = ({ data }) => {

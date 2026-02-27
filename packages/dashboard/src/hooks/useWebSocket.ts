@@ -30,7 +30,7 @@ export interface SecurityAlert {
 export const useWebSocket = (projectId?: string) => {
     const wsRef = useRef<WebSocket | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const reconnectTimer = useRef<any>(undefined);
+    const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const reconnectAttempts = useRef(0);
     const [isConnected, setIsConnected] = useState(false);
     const [liveSpans, setLiveSpans] = useState<Span[]>([]);
@@ -116,6 +116,7 @@ export const useWebSocket = (projectId?: string) => {
         };
 
         wsRef.current = ws;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [projectId]);
 
     const disconnect = useCallback(() => {

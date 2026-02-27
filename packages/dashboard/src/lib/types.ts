@@ -58,7 +58,7 @@ export interface SecurityAlert {
   severity: SecurityAlertSeverity;
   alert_type: string;
   message: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 

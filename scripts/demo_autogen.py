@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 try:
     from agentstack import init
     from agentstack.tracer import Tracer
-    from autogen import ConversableAgent
+    from autogen import ConversableAgent, Agent
 except ImportError as e:
     print(f"Skipping test, required modules missing: {e}")
     sys.exit(0)
@@ -63,10 +63,9 @@ def run_autogen_demo():
 
     # Flush trace data to AgentStack
     print("\nFlushing telemetry data to AgentStack...")
-    if hasattr(Tracer, 'get_tracer_provider'):
-        provider = Tracer.get_tracer_provider()
-        if provider:
-            provider.force_flush()
+    processor = Tracer.get_processor()
+    if processor:
+        processor.flush()
     print("Done! Check the dashboard to verify AutoGen spans.")
 
 if __name__ == "__main__":
