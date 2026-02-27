@@ -35,7 +35,6 @@ export interface SecurityAlert {
 
 export const useWebSocket = (projectId?: string) => {
     const wsRef = useRef<WebSocket | null>(null);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const reconnectAttempts = useRef(0);
     const [isConnected, setIsConnected] = useState(false);

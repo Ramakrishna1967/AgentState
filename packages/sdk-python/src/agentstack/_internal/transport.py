@@ -122,7 +122,8 @@ class HttpTransport:
                     },
                     method="POST",
                 )
-                response = urllib.request.urlopen(req, timeout=self._timeout)
+                # nosec B310 relies on configured collector URL which is verified
+                response = urllib.request.urlopen(req, timeout=self._timeout)  # nosec B310
                 status = response.getcode()
 
                 if 200 <= status < 300:

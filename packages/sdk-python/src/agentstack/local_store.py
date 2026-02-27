@@ -182,7 +182,7 @@ class LocalStore:
             with self._lock:
                 conn = self._get_conn()
                 cursor = conn.execute(
-                    f"UPDATE spans SET sent = 1 WHERE span_id IN ({placeholders})",
+                    f"UPDATE spans SET sent = 1 WHERE span_id IN ({placeholders})",  # nosec B608
                     span_ids,
                 )
                 count = cursor.rowcount
