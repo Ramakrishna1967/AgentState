@@ -64,9 +64,13 @@ _PATTERNS: list[tuple[re.Pattern[str], str]] = [
         re.compile(r"\b(?:AKIA|AIDA|AROA|ABIA|ACCA)[A-Z0-9]{16}\b"),
         REDACTED_AWS_KEY,
     ),
-    # AWS Secret Access Keys: 40-char base64 strings
+    # AWS Secret Access Keys: 40-char base64 strings near AWS context
     (
-        re.compile(r"\b[A-Za-z0-9/+=]{40}\b"),
+        re.compile(
+            r"(?:aws[_-]?secret[_-]?access[_-]?key|secret[_-]?key|aws[_-]?secret)"
+            r"[\s]*[=:][\s]*['\"]?([A-Za-z0-9/+=]{40})['\"]?",
+            re.IGNORECASE,
+        ),
         REDACTED_AWS_KEY,
     ),
     # Email addresses

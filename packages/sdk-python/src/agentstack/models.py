@@ -23,6 +23,7 @@ class SpanStatus(str, enum.Enum):
 
     OK = "OK"
     ERROR = "ERROR"
+    UNSET = "UNSET"
 
 
 class SpanEvent(BaseModel):

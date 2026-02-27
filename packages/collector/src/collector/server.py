@@ -17,10 +17,17 @@ from fastapi import FastAPI, Request, Depends, Header, HTTPException, Background
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-# Add parent directory to sys.path to import from api package
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "api" / "src"))
-
-from api.db import get_database, get_db
+# Try to import from the API package.
+# In monorepo dev, the api package may be installed or on sys.path.
+# In Docker, each service has its own image, so this import may not be available.
+try:
+    from api.db import get_database, get_db
+except ImportError:
+    # Standalone mode: collector will need its own DB setup or fail gracefully
+    import sys
+    from pathlib import Path as _Path
+    sys.path.insert(0, str(_Path(__file__).parent.parent.parent.parent / "api" / "src"))
+    from api.db import get_database, get_db
 from collector.auth import verify_api_key
 from collector.health import router as health_router
 from collector.redis_writer import redis_writer

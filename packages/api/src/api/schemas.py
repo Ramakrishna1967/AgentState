@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SpanStatus(str, Enum):
@@ -130,6 +130,7 @@ class UserRegisterRequest(BaseModel):
     email: str = Field(..., pattern=r"^[\w\.-]+@[\w\.-]+\.\w+$")
     password: str = Field(..., min_length=12, description="Min 12 chars, must include upper, lower, digit")
 
+    @field_validator("password")
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
         """Validate password complexity."""

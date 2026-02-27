@@ -31,10 +31,7 @@ class ClickHouseClient:
         async with connect(dsn=self.dsn) as conn:
             async with conn.cursor(cursor_factory=DictCursor) as cursor:
                 await cursor.execute(query, args)
-                if cursor.rowcount > 0:
-                     # For SELECT queries
-                    return await cursor.fetchall()
-                return []
+                return await cursor.fetchall()
 
     async def check_health(self) -> bool:
         """Check connection health."""

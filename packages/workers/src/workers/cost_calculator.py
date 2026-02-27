@@ -66,7 +66,7 @@ class CostCalculator(BaseConsumer):
             
         except Exception as e:
             logger.error(f"Error processing cost for span {message_id}: {e}")
-            raise e
+            raise
 
         # Check flush conditions
         if len(self.buffer) >= self.batch_size or (time.time() - self.last_flush) >= 1.0:
@@ -82,9 +82,9 @@ class CostCalculator(BaseConsumer):
         if not model:
             return # Skip non-LLM spans
             
-        # Extract tokens
-        prompt_tokens = int(attrs.get("llm.usage.prompt_tokens", 0))
-        completion_tokens = int(attrs.get("llm.usage.completion_tokens", 0))
+        # Extract tokens — support both OpenTelemetry-style (llm.usage.*) and SDK-style (llm.tokens.*)
+        prompt_tokens = int(attrs.get("llm.usage.prompt_tokens", attrs.get("llm.tokens.in", 0)))
+        completion_tokens = int(attrs.get("llm.usage.completion_tokens", attrs.get("llm.tokens.out", 0)))
         total_tokens = int(attrs.get("llm.usage.total_tokens", prompt_tokens + completion_tokens))
         
         if total_tokens == 0:

@@ -167,7 +167,7 @@ class ClickHouseWriter(BaseConsumer):
             # Base consumer loop catches and sleeps.
             # But we must NOT clear self.buffer if we want to retry.
             # Re-raising exception will trigger the BaseConsumer's error handler (sleep 1s) and retry.
-            raise e
+            raise
 
         # Clear buffer on success
         self.buffer = []

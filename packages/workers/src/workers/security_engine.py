@@ -60,7 +60,7 @@ class SecurityEngine(BaseConsumer):
             
         except Exception as e:
             logger.error(f"Error analyzing span {message_id}: {e}")
-            raise e
+            raise
 
     async def analyze_span(self, span: dict):
         """Run security rules on span."""
@@ -160,15 +160,16 @@ class SecurityEngine(BaseConsumer):
             ])
             
             # Real-time notification via Redis
+            # Redis XADD requires all field values to be strings or bytes
             notification = {
                 "id": alert_id,
-                "project_id": project_id,
-                "trace_id": trace_id,
-                "span_id": span_id,
-                "rule": alert["rule"],
-                "severity": alert["severity"],
-                "description": alert["description"],
-                "created_at": timestamp
+                "project_id": str(project_id),
+                "trace_id": str(trace_id),
+                "span_id": str(span_id),
+                "rule": str(alert["rule"]),
+                "severity": str(alert["severity"]),
+                "description": str(alert["description"]),
+                "created_at": str(timestamp),
             }
             # Add to alerts stream
             await self.redis.xadd(self.alerts_stream, notification)

@@ -70,6 +70,8 @@ def instrument() -> None:
 def _instrument_node(node_name: str, node_func: Callable) -> Callable:
     """Wrap a LangGraph node function to create spans.
 
+    Supports both sync and async node functions.
+
     Args:
         node_name: Name of the node in the graph.
         node_func: The original node function.
@@ -77,8 +79,39 @@ def _instrument_node(node_name: str, node_func: Callable) -> Callable:
     Returns:
         Wrapped function that creates spans.
     """
+    import asyncio
     from agentstack.context import span_context
     from agentstack.tracer import Tracer
+
+    if asyncio.iscoroutinefunction(node_func):
+        @functools.wraps(node_func)
+        async def async_wrapped(*args: Any, **kwargs: Any) -> Any:
+            tracer = Tracer.get_tracer()
+            span = tracer.start_span(f"langgraph.node.{node_name}")
+
+            try:
+                span.set_attribute("langgraph.node.name", node_name)
+                span.set_attribute("framework", "langgraph")
+
+                if args and isinstance(args[0], dict):
+                    span.set_attribute("langgraph.input.keys", str(list(args[0].keys())))
+
+                with span_context(span):
+                    result = await node_func(*args, **kwargs)
+
+                if isinstance(result, dict):
+                    span.set_attribute("langgraph.output.keys", str(list(result.keys())))
+
+                span.end()
+                return result
+
+            except Exception as exc:
+                span.record_exception(exc)
+                span.end()
+                raise
+
+        async_wrapped._agentstack_instrumented = True  # type: ignore
+        return async_wrapped
 
     @functools.wraps(node_func)
     def wrapped(*args: Any, **kwargs: Any) -> Any:

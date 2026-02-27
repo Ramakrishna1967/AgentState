@@ -32,7 +32,7 @@ _trace_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 )
 
 _span_stack_var: contextvars.ContextVar[list[Span]] = contextvars.ContextVar(
-    "agentstack_span_stack", default=[]
+    "agentstack_span_stack"
 )
 
 
@@ -51,7 +51,7 @@ def set_current_trace_id(trace_id: str) -> None:
 
 def get_current_span() -> Span | None:
     """Return the currently active span, or None if no span is active."""
-    stack = _span_stack_var.get()
+    stack = _span_stack_var.get([])
     return stack[-1] if stack else None
 
 
@@ -75,7 +75,7 @@ def span_context(span: Span) -> Generator[Span, None, None]:
         The same span, for convenience.
     """
     # Get or create a new stack for this context (important for async copy-on-write)
-    stack = _span_stack_var.get()
+    stack = _span_stack_var.get([])
     new_stack = stack.copy()
     new_stack.append(span)
     token_stack = _span_stack_var.set(new_stack)

@@ -18,11 +18,11 @@ from api.schemas import HealthResponse
 logger = logging.getLogger("agentstack.api")
 
 
-from api.routes import ws
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events."""
+    from api.routes import ws
+
     # Startup
     logger.info("AgentStack API starting...")
     db = get_database()

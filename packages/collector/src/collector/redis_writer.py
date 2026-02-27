@@ -13,7 +13,7 @@ class RedisWriter:
     """Async Redis writer for high-throughput span ingestion."""
     
     def __init__(self):
-        self.redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.redis_url = settings.REDIS_URL if hasattr(settings, 'REDIS_URL') else os.getenv("REDIS_URL", "redis://localhost:6379/0")
         self.mock_mode = os.getenv("MOCK_REDIS", "false").lower() == "true"
         self.redis: Redis | None = None
         self.stream_key = "spans.ingest"

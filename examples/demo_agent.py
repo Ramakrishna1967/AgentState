@@ -9,11 +9,11 @@ import time
 from typing import TypedDict, Optional
 
 # Point SDK collector to local backend
-os.environ["AGENTSTACK_COLLECTOR_URL"] = "http://localhost:4318/v1/traces"
+os.environ["AGENTSTACK_COLLECTOR_URL"] = "http://localhost:4318"
 os.environ["AGENTSTACK_API_KEY"] = "ak_demo_wow_factor"
 os.environ["AGENTSTACK_PROJECT_ID"] = "demo-langgraph-security"
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'agentstack', 'packages', 'sdk-python', 'src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'packages', 'sdk-python', 'src')))
 
 try:
     from agentstack import init, observe
@@ -145,8 +145,11 @@ if __name__ == "__main__":
 
     # Ensure traces are sent to local backend
     print("\nFlushing Traces to AgentStack Dashboard...")
-    if hasattr(Tracer, 'get_tracer_provider'):
-        provider = Tracer.get_tracer_provider()
-        if provider:
-            provider.force_flush()
+    try:
+        from agentstack.exporter import get_processor
+        processor = get_processor()
+        if processor:
+            processor.flush()
+    except Exception:
+        pass
     print("Done! Explore the generated traces in the 'Time Machine' and 'Security' tabs of the Dashboard.")
