@@ -108,6 +108,7 @@ export const useWebSocket = (projectId?: string) => {
             console.log(`[WS] Disconnected. Reconnecting in ${delay}ms...`);
             reconnectTimer.current = setTimeout(() => {
                 reconnectAttempts.current++;
+                // eslint-disable-next-line react-hooks/immutability
                 connect();
             }, delay);
         };
