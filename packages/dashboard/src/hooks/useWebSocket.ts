@@ -1,6 +1,7 @@
 // Copyright 2026 AgentStack Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+/* eslint-disable react-hooks/exhaustive-deps */
 /**
  * WebSocket manager hook for real-time trace streaming
  */
@@ -14,6 +15,11 @@ export interface WSMessage<T = unknown> {
     type: "span" | "trace" | "ping" | "pong" | "filter_ack" | "error" | "alert";
     data?: T;
 }
+
+// Configuration
+const MAX_ITEMS = 100;
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+const BASE_RECONNECT_DELAY = 1000; // 1 second
 
 export interface SecurityAlert {
     id: string;
@@ -36,10 +42,7 @@ export const useWebSocket = (projectId?: string) => {
     const [liveSpans, setLiveSpans] = useState<Span[]>([]);
     const [liveAlerts, setLiveAlerts] = useState<SecurityAlert[]>([]);
 
-    // Configuration
-    const maxItems = 100;
-    const maxReconnectDelay = 30000; // 30 seconds
-    const baseReconnectDelay = 1000; // 1 second
+
 
     const connect = useCallback(() => {
         if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -75,7 +78,7 @@ export const useWebSocket = (projectId?: string) => {
 
                     setLiveSpans((prev) => {
                         const updated = [span, ...prev];
-                        return updated.slice(0, maxItems);
+                        return updated.slice(0, MAX_ITEMS);
                     });
                 }
 
@@ -85,7 +88,7 @@ export const useWebSocket = (projectId?: string) => {
 
                     setLiveAlerts((prev) => {
                         const updated = [alert, ...prev];
-                        return updated.slice(0, maxItems);
+                        return updated.slice(0, MAX_ITEMS);
                     });
                 }
             } catch (err) {
@@ -99,8 +102,8 @@ export const useWebSocket = (projectId?: string) => {
 
             // Calculate exponential backoff
             const delay = Math.min(
-                baseReconnectDelay * Math.pow(2, reconnectAttempts.current),
-                maxReconnectDelay
+                BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts.current),
+                MAX_RECONNECT_DELAY
             );
 
             console.log(`[WS] Disconnected. Reconnecting in ${delay}ms...`);
