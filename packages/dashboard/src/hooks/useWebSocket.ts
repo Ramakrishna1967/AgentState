@@ -1,7 +1,7 @@
 // Copyright 2026 AgentStack Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-/* eslint-disable react-hooks/exhaustive-deps */
+
 /**
  * WebSocket manager hook for real-time trace streaming
  */
