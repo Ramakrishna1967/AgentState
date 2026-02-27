@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink as RouterNavLink } from 'react-router-dom';
 import { ProjectProvider } from "./components/ProjectSwitcher";
 import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import Security from "./pages/Security";
@@ -65,8 +65,6 @@ const App: React.FC = () => {
     </ProjectProvider>
   );
 };
-
-import { NavLink as RouterNavLink } from "react-router-dom";
 
 // Navigation Link Component
 const NavLink: React.FC<{ to: string; icon: string; children: React.ReactNode }> = ({ to, icon, children }) => {

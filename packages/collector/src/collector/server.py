@@ -23,10 +23,8 @@ from fastapi.middleware.cors import CORSMiddleware
 try:
     from api.db import get_database, get_db
 except ImportError:
-    # Standalone mode: collector will need its own DB setup or fail gracefully
-    import sys
-    from pathlib import Path as _Path
-    sys.path.insert(0, str(_Path(__file__).parent.parent.parent.parent / "api" / "src"))
+    # Standalone mode: fall back to path manipulation
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "api" / "src"))
     from api.db import get_database, get_db
 from collector.auth import verify_api_key
 from collector.health import router as health_router
