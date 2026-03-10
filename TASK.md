@@ -1,4 +1,4 @@
-# TASK — AgentStack Project Context for LLMs
+# AgentStack Project Context for LLMs
 
 > **Purpose:** This document gives an LLM (Opus 4.6 or any future model) a single-file
 > understanding of the entire AgentStack codebase — its goal, architecture, every module,
